@@ -32,15 +32,15 @@ const CONFIG = {
         beforeSecondBtn: [150, 250],
         afterSecondBtn:  [300, 700],
         beforeSave:      [400, 900],
-        beforeNext:      [50,  150],
-        beforeSkip:      [50,  150],
+        beforeNext:      [50, 150],
+        beforeSkip:      [50, 150],
     },
 
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
     locale:    '',
 
     selectors: {
-        listboxBtn: 'button[id*="headlessui-listbox-button"]',
+        listboxBtn: 'button[aria-haspopup="listbox"]',
         option1:    '',
         option2:    '',
         saveBtn:    '',
@@ -49,7 +49,7 @@ const CONFIG = {
 
 let BATCH_DATE      = null;
 let driveClient     = null;
-let mailTransporter = null;
+let mailTransporter  = null;
 
 const rand    = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const sleep   = ([min, max]) => new Promise(res => setTimeout(res, rand(min, max)));
@@ -98,7 +98,7 @@ function trackResult(result, cycleStats) {
 
 function formatResult(r) {
     const tag = `I#${r.num}`;
-    if (r.status === 'ok')   return `  ✅ ${tag} - ${r.message}`;
+    if (r.status === 'ok') return `  ✅ ${tag} - ${r.message}`;
     if (r.status === 'pass') return `  ⚠️ ${tag} - ${r.message}`;
     return `  ❌ ${tag} - ${r.message}`;
 }
@@ -133,9 +133,7 @@ function formatBatchStats() {
 }
 
 function ensureDirs() {
-    if (!fs.existsSync(CONFIG.logsDir)) {
-        fs.mkdirSync(CONFIG.logsDir, { recursive: true });
-    }
+    if (!fs.existsSync(CONFIG.logsDir)) fs.mkdirSync(CONFIG.logsDir, { recursive: true });
 }
 
 function getLogLabel(cycleNum) {
@@ -345,12 +343,18 @@ async function withTimeout(promise, ms) {
     ]);
 }
 
-function textOptionLocator(page, text) {
-    return page.locator('[role="option"]').filter({ hasText: text }).first();
+function escapeRegex(text) {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function textButtonLocator(page, text) {
-    return page.locator('button').filter({ hasText: text }).first();
+function optionLocator(page, text) {
+    const rx = new RegExp(`^\\s*${escapeRegex(String(text).trim())}\\s*$`, 'i');
+    return page.locator('li, button, div, span').filter({ hasText: rx }).first();
+}
+
+function saveButtonLocator(page, text) {
+    const rx = new RegExp(`^\\s*${escapeRegex(String(text).trim())}\\s*$`, 'i');
+    return page.locator('button').filter({ hasText: rx }).first();
 }
 
 async function clickRandomPoint(page, locator, label) {
@@ -370,6 +374,7 @@ async function processItem(page, item) {
     try {
         console.log(`   open:  ${timeStrEN()}`);
         await page.goto(item.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+        await page.waitForLoadState('networkidle').catch(() => {});
         await sleep(CONFIG.delays.pageLoad);
 
         await page.waitForSelector(CONFIG.selectors.listboxBtn, { timeout: 20_000 });
@@ -392,9 +397,13 @@ async function processItem(page, item) {
             return { status: 'pass', num: item.num, message: 'first button not clickable' };
         }
 
-        await sleep(CONFIG.delays.afterFirstBtn);
+        const firstHandle = await firstBtn.elementHandle().catch(() => null);
+        if (firstHandle) {
+            await page.waitForFunction(el => el.getAttribute('aria-expanded') === 'true', firstHandle, { timeout: 5_000 }).catch(() => {});
+        }
+        await sleep([400, 800]);
 
-        const option1 = textOptionLocator(page, CONFIG.selectors.option1);
+        const option1 = optionLocator(page, CONFIG.selectors.option1);
         if ((await option1.count()) === 0) {
             console.log(`⚠️ I#${item.num} - option1 not found`);
             return { status: 'pass', num: item.num, message: 'option1 not found' };
@@ -408,7 +417,7 @@ async function processItem(page, item) {
             return { status: 'pass', num: item.num, message: 'option1 not clickable' };
         }
 
-        await sleep([300, 700]);
+        await sleep([400, 900]);
 
         await sleep(CONFIG.delays.beforeSecondBtn);
         const freshBtns = page.locator(CONFIG.selectors.listboxBtn);
@@ -425,9 +434,13 @@ async function processItem(page, item) {
             return { status: 'pass', num: item.num, message: 'second button not clickable' };
         }
 
-        await sleep(CONFIG.delays.afterSecondBtn);
+        const secondHandle = await secondBtn.elementHandle().catch(() => null);
+        if (secondHandle) {
+            await page.waitForFunction(el => el.getAttribute('aria-expanded') === 'true', secondHandle, { timeout: 5_000 }).catch(() => {});
+        }
+        await sleep([400, 900]);
 
-        const option2 = textOptionLocator(page, CONFIG.selectors.option2);
+        const option2 = optionLocator(page, CONFIG.selectors.option2);
         if ((await option2.count()) === 0) {
             console.log(`⚠️ I#${item.num} - option2 not found`);
             return { status: 'pass', num: item.num, message: 'option2 not found' };
@@ -443,7 +456,7 @@ async function processItem(page, item) {
 
         await sleep(CONFIG.delays.beforeSave);
 
-        const saveBtn = textButtonLocator(page, CONFIG.selectors.saveBtn);
+        const saveBtn = saveButtonLocator(page, CONFIG.selectors.saveBtn);
         if ((await saveBtn.count()) === 0) {
             console.log(`⚠️ I#${item.num} - save button not found`);
             return { status: 'pass', num: item.num, message: 'save button not found' };
@@ -473,6 +486,7 @@ async function runItemWithTimeout(page, item) {
     } catch (err) {
         try {
             await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
+            await page.waitForLoadState('networkidle').catch(() => {});
             await sleep(CONFIG.delays.pageLoad);
         } catch {}
         return { status: 'error', num: item.num, message: sanitizeError(err.message) };
@@ -580,7 +594,6 @@ async function resetEngine(cookies, cycleNum) {
 
     BATCH_DATE = `${dateStr()}-${timeTag}`;
     console.log(`📦 ID: ${BATCH_DATE}`);
-
     ensureDirs();
     batchStats.startTime = Date.now();
 
