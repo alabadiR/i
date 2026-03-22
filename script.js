@@ -21,16 +21,16 @@ const CONFIG = {
     logsDir:          'logs',
     items: [],
     delays: {
-        pageLoad:        [800, 1500],
+        pageLoad:        [1500, 2500],
         beforeFirstBtn:  [150, 250],
-        afterFirstBtn:   [300, 700],
+        afterFirstBtn:   [800, 1200],
         beforeSecondBtn: [150, 250],
-        afterSecondBtn:  [300, 700],
-        beforeSave:      [400, 900],
-        beforeNext:      [50, 150],
+        afterSecondBtn:  [800, 1200],
+        beforeSave:      [1000, 1500],
+        beforeNext:      [100, 200],
         beforeSkip:      [50, 150],
     },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     locale:    '',
     selectors: {
         listboxBtn: 'button[aria-haspopup="listbox"]',
@@ -109,9 +109,6 @@ function formatBatchStats() {
         `  💾 OK        : ${batchStats.ok}`,
         `  ⚠️  Pass     : ${batchStats.pass}`,
         `  ❌ Errors    : ${batchStats.errors}`,
-        `  🔁 Resets    : ${batchStats.resets}`,
-        `  🔐 Checks    : ${batchStats.sessionChecks}`,
-        `  ☁️  Uploads  : ${batchStats.driveUploads}`,
         `  ✅ Rate      : ${rate}%`,
         `  ⏱️  Elapsed  : ${elapsed} min`,
         '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
@@ -178,11 +175,8 @@ async function sendPartSummary(cycleNum) {
 }
 
 async function sendSummary(batchStartTime) {
-    const hour = hourNow();
     const body = formatBatchStats();
     await sendEmail(`📦 Complete - ${batchStartTime}`, body);
-    if (CONFIG.reportHours.includes(hour)) await sendEmail(`🕐 6h report - ${timeStrEN()}`, body);
-    if (hour === CONFIG.dailyHour && !CONFIG.reportHours.includes(hour)) await sendEmail(`📊 Daily report - ${BATCH_DATE}`, body);
 }
 
 function parseCookies(raw) {
@@ -192,7 +186,7 @@ function parseCookies(raw) {
         if (trimmed.startsWith('[')) return JSON.parse(trimmed);
         const d = new URL(CONFIG.items[0].url).hostname.replace(/^[^.]+/, '');
         return trimmed.split(';').map(c => { const [name, ...rest] = c.trim().split('='); if (!name) return null; return { name: name.trim(), value: rest.join('=').trim(), domain: d, path: '/' }; }).filter(Boolean);
-    } catch (e) { console.error('❌ Parse failed:', e.message); return []; }
+    } catch (e) { return []; }
 }
 
 async function createBrowser(cookies) {
@@ -200,35 +194,27 @@ async function createBrowser(cookies) {
     const context = await browser.newContext({
         userAgent: CONFIG.userAgent,
         locale: CONFIG.locale,
-        viewport: { width: 1366 + Math.floor(Math.random() * 100), height: 768 + Math.floor(Math.random() * 100) },
+        viewport: { width: 1280, height: 720 },
     });
-    await context.route('**/*.{png,jpg,jpeg,gif,webp,svg,css,woff,woff2,ttf,eot}', r => r.abort());
-    await context.route('**/*analytics*', r => r.abort());
-    await context.route('**/*tracking*', r => r.abort());
-    await context.route('**/*collect*', r => r.abort());
-    await context.route('**/*beacon*', r => r.abort());
+    await context.route('**/*.{png,jpg,jpeg,gif,webp,svg,css,woff,woff2}', r => r.abort());
     await context.addCookies(cookies);
     return { browser, context };
 }
 
-async function checkSession(page, label = 'general') {
+async function checkSession(page) {
     batchStats.sessionChecks++;
-    for (let attempt = 1; attempt <= CONFIG.cookieRetries; attempt++) {
-        try {
-            await page.goto(CONFIG.items[0].url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            await sleep(CONFIG.delays.pageLoad);
-            const foundCount = await page.locator(CONFIG.selectors.listboxBtn).count();
-            if (foundCount > 0) return { valid: true };
-        } catch {}
-        if (attempt < CONFIG.cookieRetries) await sleepMs(CONFIG.cookieRetryDelay);
-    }
-    return { valid: false };
+    try {
+        await page.goto(CONFIG.items[0].url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await sleep([1500, 2500]);
+        const found = await page.locator(CONFIG.selectors.listboxBtn).first().isVisible();
+        return { valid: found };
+    } catch { return { valid: false }; }
 }
 
 async function haltAndNotify(browser, message) {
     const body = `${message}\n\n${formatBatchStats()}`;
     await sendEmail(`🚨 Alert - ${timeStrEN()}`, body);
-    await browser.close();
+    if (browser) await browser.close();
     process.exit(1);
 }
 
@@ -236,73 +222,45 @@ function sanitizeError(msg) {
     return String(msg || '').replace(/https?:\/\/\S+/g, '[URL]').split('\n')[0];
 }
 
-function isCycleEmpty(cycleStats) {
-    return cycleStats.ok === 0;
-}
-
-async function withTimeout(promise, ms) {
-    return Promise.race([
-        promise,
-        new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('item timeout')), ms)
-        )
-    ]);
-}
-
-function escapeRegex(text) {
-    return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 function optionLocator(page, text) {
-    const rx = new RegExp(`^\\s*${escapeRegex(String(text).trim())}\\s*$`, 'i');
-    return page.getByRole('option', { name: rx }).first();
+    const cleanText = String(text).trim();
+    return page.locator('role=option').filter({ hasText: new RegExp(`^\\s*${cleanText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i') }).first();
 }
 
 async function processItem(page, item) {
     try {
-        await page.goto(item.url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.goto(item.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
         await sleep(CONFIG.delays.pageLoad);
 
-        const btns = await page.$$(CONFIG.selectors.listboxBtn);
-        if (btns.length < 2) {
-            return { status: 'pass', num: item.num, message: 'buttons not found' };
-        }
+        const btns = page.locator(CONFIG.selectors.listboxBtn);
+        const btnCount = await btns.count();
+        if (btnCount < 2) return { status: 'pass', num: item.num, message: 'Interface missing' };
 
-        await btns[0].click();
-        await sleep([600, 1000]);
+        await btns.nth(0).click({ force: true });
+        await sleep([1000, 1500]);
 
-        const options = await page.getByRole('option').allInnerTexts();
-        const cleanOptions = options.map(t => t.trim()).filter(t => t.length > 0);
-        console.log(`🔍 [Item ${item.num}] Options:`, cleanOptions);
-        appendLog(`[TEST] Found options: ${cleanOptions.join(' | ')}`, batchStats.totalCycles);
+        const allOptions = await page.locator('role=option').allInnerTexts();
+        const cleanedOptions = allOptions.map(t => t.trim()).filter(Boolean);
+        console.log(`🔍 [Item ${item.num}] Full List Content:`, cleanedOptions);
+        appendLog(`[TEST] Dropdown Options for Item ${item.num}: ${cleanedOptions.join(' | ')}`, batchStats.totalCycles);
 
-        const option1 = optionLocator(page, CONFIG.selectors.option1);
-        await option1.waitFor({ state: 'visible', timeout: 5000 });
-        await option1.click();
-        await sleep([500, 800]);
+        const opt1 = optionLocator(page, CONFIG.selectors.option1);
+        await opt1.waitFor({ state: 'visible', timeout: 7000 });
+        await opt1.click({ force: true });
+        await sleep([800, 1200]);
 
-        const freshBtns = await page.$$(CONFIG.selectors.listboxBtn);
-        if (!freshBtns[1]) {
-            return { status: 'pass', num: item.num, message: 'second dropdown not found' };
-        }
+        await btns.nth(1).click({ force: true });
+        await sleep([800, 1200]);
 
-        await freshBtns[1].click();
-        await sleep([500, 800]);
-
-        const option2 = optionLocator(page, CONFIG.selectors.option2);
-        await option2.waitFor({ state: 'visible', timeout: 5000 });
-        await option2.click();
+        const opt2 = optionLocator(page, CONFIG.selectors.option2);
+        await opt2.waitFor({ state: 'visible', timeout: 7000 });
+        await opt2.click({ force: true });
         await sleep(CONFIG.delays.beforeSave);
 
-        const saveBtn = page.getByRole('button', {
-            name: new RegExp(`^\\s*${escapeRegex(String(CONFIG.selectors.saveBtn).trim())}\\s*$`, 'i')
-        }).first();
-
-        await saveBtn.waitFor({ state: 'visible', timeout: 5000 });
-        await saveBtn.click();
-
+        const saveBtn = page.getByRole('button').filter({ hasText: new RegExp(`^\\s*${CONFIG.selectors.saveBtn.trim()}\\s*$`, 'i') }).first();
+        await saveBtn.click({ force: true });
+        
         return { status: 'ok', num: item.num, message: timeStrEN() };
-
     } catch (err) {
         return { status: 'error', num: item.num, message: sanitizeError(err.message) };
     } finally {
@@ -310,85 +268,62 @@ async function processItem(page, item) {
     }
 }
 
-async function runItemWithTimeout(page, item) {
-    try { return await withTimeout(processItem(page, item), 90000); }
-    catch (err) { await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {}); return { status: 'error', num: item.num, message: sanitizeError(err.message) }; }
-}
-
 async function runCycle(page, cycleNum) {
     const totalI = CONFIG.items.length;
-    const minI   = Math.min(CONFIG.minPerCycle, totalI);
-    const iCount = rand(minI, totalI);
-    const selected = [...CONFIG.items].sort(() => 0.5 - Math.random()).slice(0, iCount);
+    const selected = [...CONFIG.items].sort(() => 0.5 - Math.random()).slice(0, rand(CONFIG.minPerCycle, totalI));
     const cycleStats = newCycleStats();
     const lines = [];
-    for (const item of selected) { const result = await runItemWithTimeout(page, item); trackResult(result, cycleStats); lines.push(formatResult(result)); }
+    for (const item of selected) {
+        const result = await processItem(page, item);
+        trackResult(result, cycleStats);
+        lines.push(formatResult(result));
+    }
     batchStats.totalCycles++;
-    appendLog([
-        '\n==========================================',
-        `Cycle ${cycleNum}/${CONFIG.rounds} - ${timeStrEN()}`,
-        `I: ${iCount}/${totalI}`,
-        '------------------------------------------',
-        ...lines,
-        '------------------------------------------',
-        `📈 ${formatCycleStats(cycleStats)}`,
-        `Cycle ${cycleNum} done: ${timeStrEN()}`,
-    ].join('\n'), cycleNum);
+    appendLog(`\nCycle ${cycleNum} - ${timeStrEN()}\n` + lines.join('\n') + `\n📈 ${formatCycleStats(cycleStats)}`, cycleNum);
     if (cycleNum % CONFIG.logEvery === 0 || cycleNum === CONFIG.rounds) await sendPartSummary(cycleNum);
     return cycleStats;
 }
 
-async function resetEngine(cookies, cycleNum) {
-    batchStats.resets++;
-    const { browser: newBrowser, context: newContext } = await createBrowser(cookies);
-    const newPage = await newContext.newPage();
-    await newPage.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => false }); window.chrome = { runtime: {} }; });
-    const { valid } = await checkSession(newPage, `reset-${cycleNum}`);
-    if (!valid) await haltAndNotify(newBrowser, `Session invalid at cycle ${cycleNum}.`);
-    return { browser: newBrowser, context: newContext, page: newPage };
-}
-
 (async () => {
-    const required = ['I_CO','GDR_K','GDR_D','M_P','I_M','I_U','I_TZ','I_LC','I_O1','I_O2','I_SB'];
-    for (const key of required) if (!process.env[key]) process.exit(1);
-
     CONFIG.email             = requireEnv('I_M', process.env.I_M);
     CONFIG.timezone          = requireEnv('I_TZ', process.env.I_TZ);
     CONFIG.locale            = requireEnv('I_LC', process.env.I_LC);
     CONFIG.selectors.option1 = requireEnv('I_O1', process.env.I_O1);
     CONFIG.selectors.option2 = requireEnv('I_O2', process.env.I_O2);
     CONFIG.selectors.saveBtn = requireEnv('I_SB', process.env.I_SB);
-    CONFIG.items = requireEnv('I_U', process.env.I_U).split(',').map(entry => {
-        const [num, url] = entry.trim().split('|');
-        return { num: normalize(num), url: normalize(url) };
+    CONFIG.items = requireEnv('I_U', process.env.I_U).split(',').map(e => {
+        const [n, u] = e.trim().split('|');
+        return { num: normalize(n), url: normalize(u) };
     }).filter(e => e.num && e.url);
 
-    const timeTag = new Date().toLocaleTimeString('en-CA', { timeZone: CONFIG.timezone, hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '');
-    BATCH_DATE = `${dateStr()}-${timeTag}`;
+    BATCH_DATE = `${dateStr()}-${timeStrEN().replace(/:/g,'')}`;
     ensureDirs();
     batchStats.startTime = Date.now();
     initDriveClient();
     initMailTransporter();
+
     const cookies = parseCookies(process.env.I_CO);
     let { browser, context } = await createBrowser(cookies);
     let page = await context.newPage();
-    await page.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => false }); window.chrome = { runtime: {} }; });
-    const { valid: initialValid } = await checkSession(page, 'startup');
-    if (!initialValid) await haltAndNotify(browser, 'Session invalid before batch start.');
+    
+    const { valid } = await checkSession(page);
+    if (!valid) await haltAndNotify(browser, 'Session invalid at start.');
+
     let nextReset = rand(CONFIG.resetAfterMin, CONFIG.resetAfterMax);
     for (let i = 1; i <= CONFIG.rounds; i++) {
-        if (i > 1 && i >= nextReset) {
+        if (i >= nextReset) {
             await context.close(); await browser.close();
-            ({ browser, context, page } = await resetEngine(cookies, i));
+            ({ browser, context } = await createBrowser(cookies));
+            page = await context.newPage();
             nextReset = i + rand(CONFIG.resetAfterMin, CONFIG.resetAfterMax);
         }
-        const cycleStats = await runCycle(page, i);
-        if (isCycleEmpty(cycleStats)) {
-            const { valid } = await checkSession(page, `check-${i}`);
-            if (!valid) await haltAndNotify(browser, `Session check failed after cycle ${i}.`);
+        const stats = await runCycle(page, i);
+        if (stats.ok === 0 && stats.errors > 0) {
+            const { valid: v } = await checkSession(page);
+            if (!v) await haltAndNotify(browser, `Session died at cycle ${i}`);
         }
-        if (i < CONFIG.rounds) await sleepMs(rand(CONFIG.cycleDelayMin, CONFIG.cycleDelayMax));
+        await sleepMs(rand(CONFIG.cycleDelayMin, CONFIG.cycleDelayMax));
     }
-    await context.close(); await browser.close();
+    await browser.close();
     await sendSummary(timeStrEN());
 })();
