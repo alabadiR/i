@@ -580,6 +580,8 @@ async function resetEngine(cookies, cycleNum) {
         return { num: normalize(num), url: normalize(url) };
     }).filter(e => e.num && e.url);
 
+    console.log('ITEMS:', CONFIG.items);
+
     if (CONFIG.items.length === 0) {
         console.error('❌ I_U empty or invalid');
         process.exit(1);
