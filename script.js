@@ -107,13 +107,13 @@ function formatBatchStats() {
         `  🔄 Cycles    : ${batchStats.totalCycles}/${CONFIG.rounds}`,
         `  📋 Total I   : ${batchStats.totalI}`,
         `  💾 OK        : ${batchStats.ok}`,
-        `  ⚠️  Pass      : ${batchStats.pass}`,
+        `  ⚠️  Pass     : ${batchStats.pass}`,
         `  ❌ Errors    : ${batchStats.errors}`,
         `  🔁 Resets    : ${batchStats.resets}`,
         `  🔐 Checks    : ${batchStats.sessionChecks}`,
-        `  ☁️  Uploads   : ${batchStats.driveUploads}`,
+        `  ☁️  Uploads  : ${batchStats.driveUploads}`,
         `  ✅ Rate      : ${rate}%`,
-        `  ⏱️  Elapsed   : ${elapsed} min`,
+        `  ⏱️  Elapsed  : ${elapsed} min`,
         '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
     ].join('\n');
 }
@@ -303,14 +303,6 @@ async function processItem(page, item) {
     } finally {
         await sleep(CONFIG.delays.beforeNext);
     }
-}
-        const saveBtn = saveButtonLocator(page, CONFIG.selectors.saveBtn);
-        if ((await saveBtn.count()) === 0) return { status: 'pass', num: item.num, message: 'save button not found' };
-        await saveBtn.click();
-        return { status: 'ok', num: item.num, message: timeStrEN() };
-
-    } catch (err) { return { status: 'error', num: item.num, message: sanitizeError(err.message) }; }
-    finally { await sleep(CONFIG.delays.beforeNext); }
 }
 
 async function runItemWithTimeout(page, item) {
