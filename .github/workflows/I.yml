@@ -18,29 +18,35 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Cache node modules
         uses: actions/cache@v3
         with:
           path: node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('package.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') || hashFiles('package.json') }}
 
       - name: Cache Playwright
         uses: actions/cache@v3
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package.json') }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') || hashFiles('package.json') }}
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          if [ ! -f package.json ]; then
+            npm init -y
+            npm install playwright nodemailer googleapis
+          else
+            npm install
+          fi
 
       - name: Install Chromium
-        run: npx playwright install chromium
+        run: npx playwright install chromium --with-deps
 
       - name: Run script
         env:
