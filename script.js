@@ -403,6 +403,9 @@ async function processItem(page, item) {
         }
         await sleep([400, 800]);
 
+        const allOptions = await page.locator('li, button, div').allTextContents();
+        console.log('OPTIONS:', allOptions);
+
         const option1 = optionLocator(page, CONFIG.selectors.option1);
         if ((await option1.count()) === 0) {
             console.log(`⚠️ I#${item.num} - option1 not found`);
@@ -579,8 +582,6 @@ async function resetEngine(cookies, cycleNum) {
         const [num, url] = entry.trim().split('|');
         return { num: normalize(num), url: normalize(url) };
     }).filter(e => e.num && e.url);
-
-    console.log('ITEMS:', CONFIG.items);
 
     if (CONFIG.items.length === 0) {
         console.error('❌ I_U empty or invalid');
