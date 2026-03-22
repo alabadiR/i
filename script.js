@@ -232,50 +232,78 @@ async function haltAndNotify(browser, message) {
     process.exit(1);
 }
 
-function sanitizeError(msg) { return String(msg || '').replace(/https?:\/\/\S+/g, '[URL]').split('\n')[0]; }
-function isCycleEmpty(cycleStats) { return cycleStats.ok === 0; }
-async function withTimeout(promise, ms) { return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('item timeout')), ms))]); }
-function escapeRegex(text) { return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function sanitizeError(msg) {
+    return String(msg || '').replace(/https?:\/\/\S+/g, '[URL]').split('\n')[0];
+}
+
+function isCycleEmpty(cycleStats) {
+    return cycleStats.ok === 0;
+}
+
+async function withTimeout(promise, ms) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('item timeout')), ms)
+        )
+    ]);
+}
+
+function escapeRegex(text) {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 function optionLocator(page, text) {
     const rx = new RegExp(`^\\s*${escapeRegex(String(text).trim())}\\s*$`, 'i');
-    return page.locator('[role="listbox"] li, [role="option"], .option, .menu-item').filter({ hasText: rx }).first();
-}
-
-function saveButtonLocator(page, text) {
-    const rx = new RegExp(`^\\s*${escapeRegex(String(text).trim())}\\s*$`, 'i');
-    return page.locator('button').filter({ hasText: rx }).first();
-}
-
-async function clickRandomPoint(page, locator, label) {
-    await locator.waitFor({ state: 'visible', timeout: 5000 });
-    const box = await locator.boundingBox();
-    if (!box) throw new Error(`${label} box null`);
-    await page.mouse.click(box.x + Math.random() * box.width, box.y + Math.random() * box.height);
+    return page.getByRole('option', { name: rx }).first();
 }
 
 async function processItem(page, item) {
     try {
         await page.goto(item.url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-        await page.waitForLoadState('networkidle').catch(() => {});
         await sleep(CONFIG.delays.pageLoad);
 
-        const firstBtn = page.locator(CONFIG.selectors.listboxBtn).first();
-        await clickRandomPoint(page, firstBtn, `I#${item.num} first dropdown`);
-        await sleep([500, 800]);
-        const option1 = optionLocator(page, CONFIG.selectors.option1);
-        if ((await option1.count()) === 0) return { status: 'pass', num: item.num, message: 'option1 not found' };
-        await option1.click();
-        await sleep([400, 900]);
+        const btns = await page.$$(CONFIG.selectors.listboxBtn);
+        if (btns.length < 2) {
+            return { status: 'pass', num: item.num, message: 'buttons not found' };
+        }
 
-        const secondBtn = page.locator(CONFIG.selectors.listboxBtn).nth(1);
-        await clickRandomPoint(page, secondBtn, `I#${item.num} second dropdown`);
-        await sleep([400, 800]);
+        await btns[0].click();
+        await sleep([300, 600]);
+
+        const option1 = optionLocator(page, CONFIG.selectors.option1);
+        await option1.waitFor({ state: 'visible', timeout: 5000 });
+        await option1.click();
+        await sleep([300, 600]);
+
+        const freshBtns = await page.$$(CONFIG.selectors.listboxBtn);
+        if (!freshBtns[1]) {
+            return { status: 'pass', num: item.num, message: 'second dropdown not found' };
+        }
+
+        await freshBtns[1].click();
+        await sleep([300, 600]);
+
         const option2 = optionLocator(page, CONFIG.selectors.option2);
-        if ((await option2.count()) === 0) return { status: 'pass', num: item.num, message: 'option2 not found' };
+        await option2.waitFor({ state: 'visible', timeout: 5000 });
         await option2.click();
         await sleep(CONFIG.delays.beforeSave);
 
+        const saveBtn = page.getByRole('button', {
+            name: new RegExp(`^\\s*${escapeRegex(String(CONFIG.selectors.saveBtn).trim())}\\s*$`, 'i')
+        }).first();
+
+        await saveBtn.waitFor({ state: 'visible', timeout: 5000 });
+        await saveBtn.click();
+
+        return { status: 'ok', num: item.num, message: timeStrEN() };
+
+    } catch (err) {
+        return { status: 'error', num: item.num, message: sanitizeError(err.message) };
+    } finally {
+        await sleep(CONFIG.delays.beforeNext);
+    }
+}
         const saveBtn = saveButtonLocator(page, CONFIG.selectors.saveBtn);
         if ((await saveBtn.count()) === 0) return { status: 'pass', num: item.num, message: 'save button not found' };
         await saveBtn.click();
