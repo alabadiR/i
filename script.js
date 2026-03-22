@@ -55,7 +55,7 @@ const rand      = (min, max) => Math.floor(Math.random() * (max - min + 1)) + mi
 const sleep     = ([min, max]) => new Promise(res => setTimeout(res, rand(min, max)));
 const sleepMs   = (ms)        => new Promise(res => setTimeout(res, ms));
 
-const tz        = () => ({ timeZone: CONFIG.timezone });
+const tz        = () => ({ timeZone: CONFIG.timezone || 'UTC' });
 const timeStrEN = () => new Date().toLocaleTimeString('en-CA', { ...tz(), hour12: false });
 const dateStr   = () => new Date().toLocaleDateString('en-CA', tz());
 const hourNow   = () => new Date(new Date().toLocaleString('en', tz())).getHours();
