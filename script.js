@@ -50,7 +50,7 @@ const batchStats = {
 };
 
 function out(text) {
-    const entry = `[${timeStrEN()}] ${text}\n`;
+    const entry = `***${timeStrEN()}*** ${text}\n`;
     process.stdout.write(entry);
     logBuffer += entry;
 }
@@ -85,11 +85,9 @@ async function uploadToDrive(cycleNum) {
         const label = cycleNum === CONFIG.rounds ? 'final' : `part${Math.ceil(cycleNum / CONFIG.logEvery)}`;
         const logPath = path.join(CONFIG.logsDir, `${BATCH_DATE}-${label}.txt`);
         if (!fs.existsSync(logPath)) return;
-        
         const fileName = path.basename(logPath);
         const folderId = process.env.GDR_D;
         const fileStream = fs.createReadStream(logPath);
-        
         await driveClient.files.create({
             requestBody: { name: fileName, parents: [folderId] },
             media: { mimeType: 'text/plain', body: fileStream }
@@ -147,9 +145,9 @@ async function processItem(page, item) {
         }
 
         const saveBtn = page.getByRole('button').filter({ hasText: new RegExp(`^${CONFIG.selectors.saveBtn}$`, 'i') }).first();
-        if (await saveBtn.count() > 0) {
+        if (await saveBtn.isVisible()) {
             await saveBtn.click({ force: true });
-            await sleepMs(1000);
+            await sleepMs(1500);
             return { status: 'ok', message: 'Success' };
         }
 
@@ -211,8 +209,7 @@ async function runCycle(page, cycleNum) {
         const context = await browser.newContext({ userAgent: CONFIG.userAgent });
         
         if (process.env.I_CO) {
-            const cookies = JSON.parse(process.env.I_CO);
-            await context.addCookies(cookies);
+            await context.addCookies(JSON.parse(process.env.I_CO));
         }
         
         const page = await context.newPage();
