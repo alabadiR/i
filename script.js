@@ -21,12 +21,12 @@ const CONFIG = {
     logsDir:          'logs',
     items: [],
     delays: {
-        pageLoad:        [1500, 2500],
-        beforeFirstBtn:  [150, 250],
-        afterFirstBtn:   [800, 1200],
-        beforeSecondBtn: [150, 250],
-        afterSecondBtn:  [800, 1200],
-        beforeSave:      [1000, 1500],
+        pageLoad:        [2000, 3000],
+        beforeFirstBtn:  [200, 400],
+        afterFirstBtn:   [1000, 1500],
+        beforeSecondBtn: [200, 400],
+        afterSecondBtn:  [1000, 1500],
+        beforeSave:      [1200, 1800],
         beforeNext:      [100, 200],
         beforeSkip:      [50, 150],
     },
@@ -50,7 +50,6 @@ const sleepMs = (ms) => new Promise(res => setTimeout(res, ms));
 const tz        = () => ({ timeZone: CONFIG.timezone || 'UTC' });
 const timeStrEN = () => new Date().toLocaleTimeString('en-CA', { ...tz(), hour12: false });
 const dateStr   = () => new Date().toLocaleDateString('en-CA', tz());
-const hourNow   = () => new Date(new Date().toLocaleString('en', tz())).getHours();
 
 const batchStats = {
     totalCycles:   0,
@@ -66,12 +65,6 @@ const batchStats = {
 
 function normalize(value) {
     return String(value ?? '').trim();
-}
-
-function requireEnv(name, value) {
-    const normalized = normalize(value);
-    if (!normalized) throw new Error(`${name} missing`);
-    return normalized;
 }
 
 function newCycleStats() {
@@ -132,9 +125,14 @@ function appendLog(text, cycleNum) {
 }
 
 function initDriveClient() {
-    const credentials = JSON.parse(process.env.GDR_K);
-    const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive.file'] });
-    driveClient = google.drive({ version: 'v3', auth });
+    try {
+        const credentials = JSON.parse(process.env.GDR_K);
+        const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive.file'] });
+        driveClient = google.drive({ version: 'v3', auth });
+    } catch (e) {
+        console.error('❌ Google Drive Auth Error: Check if GDR_K is valid JSON');
+        process.exit(1);
+    }
 }
 
 async function uploadToDrive(logPath) {
@@ -152,7 +150,7 @@ async function uploadToDrive(logPath) {
             await driveClient.files.create({ requestBody: fileMetadata, media });
         }
         batchStats.driveUploads++;
-    } catch (err) { console.error('❌ Drive error:', err); }
+    } catch (err) { console.error('❌ Drive error:', err.message); }
 }
 
 function initMailTransporter() {
@@ -174,18 +172,17 @@ async function sendPartSummary(cycleNum) {
     await uploadToDrive(logPath);
 }
 
-async function sendSummary(batchStartTime) {
-    const body = formatBatchStats();
-    await sendEmail(`📦 Complete - ${batchStartTime}`, body);
-}
-
 function parseCookies(raw) {
     try {
         const trimmed = normalize(raw);
         if (!trimmed) return [];
         if (trimmed.startsWith('[')) return JSON.parse(trimmed);
         const d = new URL(CONFIG.items[0].url).hostname.replace(/^[^.]+/, '');
-        return trimmed.split(';').map(c => { const [name, ...rest] = c.trim().split('='); if (!name) return null; return { name: name.trim(), value: rest.join('=').trim(), domain: d, path: '/' }; }).filter(Boolean);
+        return trimmed.split(';').map(c => { 
+            const [name, ...rest] = c.trim().split('='); 
+            if (!name) return null; 
+            return { name: name.trim(), value: rest.join('=').trim(), domain: d, path: '/' }; 
+        }).filter(Boolean);
     } catch (e) { return []; }
 }
 
@@ -211,17 +208,6 @@ async function checkSession(page) {
     } catch { return { valid: false }; }
 }
 
-async function haltAndNotify(browser, message) {
-    const body = `${message}\n\n${formatBatchStats()}`;
-    await sendEmail(`🚨 Alert - ${timeStrEN()}`, body);
-    if (browser) await browser.close();
-    process.exit(1);
-}
-
-function sanitizeError(msg) {
-    return String(msg || '').replace(/https?:\/\/\S+/g, '[URL]').split('\n')[0];
-}
-
 function optionLocator(page, text) {
     const cleanText = String(text).trim();
     return page.locator('role=option').filter({ hasText: new RegExp(`^\\s*${cleanText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i') }).first();
@@ -239,10 +225,11 @@ async function processItem(page, item) {
         await btns.nth(0).click({ force: true });
         await sleep([1000, 1500]);
 
+        // --- TEST: Print all options to log ---
         const allOptions = await page.locator('role=option').allInnerTexts();
-        const cleanedOptions = allOptions.map(t => t.trim()).filter(Boolean);
-        console.log(`🔍 [Item ${item.num}] Full List Content:`, cleanedOptions);
-        appendLog(`[TEST] Dropdown Options for Item ${item.num}: ${cleanedOptions.join(' | ')}`, batchStats.totalCycles);
+        const cleaned = allOptions.map(t => t.trim()).filter(Boolean);
+        console.log(`🔍 [Item ${item.num}] Options Found:`, cleaned);
+        appendLog(`[DEBUG] Item ${item.num} Options: ${cleaned.join(' | ')}`, batchStats.totalCycles);
 
         const opt1 = optionLocator(page, CONFIG.selectors.option1);
         await opt1.waitFor({ state: 'visible', timeout: 7000 });
@@ -262,7 +249,7 @@ async function processItem(page, item) {
         
         return { status: 'ok', num: item.num, message: timeStrEN() };
     } catch (err) {
-        return { status: 'error', num: item.num, message: sanitizeError(err.message) };
+        return { status: 'error', num: item.num, message: err.message.split('\n')[0] };
     } finally {
         await sleep(CONFIG.delays.beforeNext);
     }
@@ -285,45 +272,49 @@ async function runCycle(page, cycleNum) {
 }
 
 (async () => {
-    CONFIG.email             = requireEnv('I_M', process.env.I_M);
-    CONFIG.timezone          = requireEnv('I_TZ', process.env.I_TZ);
-    CONFIG.locale            = requireEnv('I_LC', process.env.I_LC);
-    CONFIG.selectors.option1 = requireEnv('I_O1', process.env.I_O1);
-    CONFIG.selectors.option2 = requireEnv('I_O2', process.env.I_O2);
-    CONFIG.selectors.saveBtn = requireEnv('I_SB', process.env.I_SB);
-    CONFIG.items = requireEnv('I_U', process.env.I_U).split(',').map(e => {
-        const [n, u] = e.trim().split('|');
-        return { num: normalize(n), url: normalize(u) };
-    }).filter(e => e.num && e.url);
-
-    BATCH_DATE = `${dateStr()}-${timeStrEN().replace(/:/g,'')}`;
-    ensureDirs();
-    batchStats.startTime = Date.now();
-    initDriveClient();
-    initMailTransporter();
-
-    const cookies = parseCookies(process.env.I_CO);
-    let { browser, context } = await createBrowser(cookies);
-    let page = await context.newPage();
-    
-    const { valid } = await checkSession(page);
-    if (!valid) await haltAndNotify(browser, 'Session invalid at start.');
-
-    let nextReset = rand(CONFIG.resetAfterMin, CONFIG.resetAfterMax);
-    for (let i = 1; i <= CONFIG.rounds; i++) {
-        if (i >= nextReset) {
-            await context.close(); await browser.close();
-            ({ browser, context } = await createBrowser(cookies));
-            page = await context.newPage();
-            nextReset = i + rand(CONFIG.resetAfterMin, CONFIG.resetAfterMax);
+    try {
+        const required = ['I_CO','GDR_K','GDR_D','M_P','I_M','I_U','I_TZ','I_LC','I_O1','I_O2','I_SB'];
+        for (const key of required) {
+            if (!process.env[key]) {
+                console.error(`❌ Environment variable [${key}] is missing or empty!`);
+                process.exit(1);
+            }
         }
-        const stats = await runCycle(page, i);
-        if (stats.ok === 0 && stats.errors > 0) {
-            const { valid: v } = await checkSession(page);
-            if (!v) await haltAndNotify(browser, `Session died at cycle ${i}`);
+
+        CONFIG.email             = normalize(process.env.I_M);
+        CONFIG.timezone          = normalize(process.env.I_TZ);
+        CONFIG.locale            = normalize(process.env.I_LC);
+        CONFIG.selectors.option1 = normalize(process.env.I_O1);
+        CONFIG.selectors.option2 = normalize(process.env.I_O2);
+        CONFIG.selectors.saveBtn = normalize(process.env.I_SB);
+        CONFIG.items = normalize(process.env.I_U).split(',').map(e => {
+            const [n, u] = e.trim().split('|');
+            return { num: normalize(n), url: normalize(u) };
+        }).filter(e => e.num && e.url);
+
+        BATCH_DATE = `${dateStr()}-${timeStrEN().replace(/:/g,'')}`;
+        ensureDirs();
+        batchStats.startTime = Date.now();
+        initDriveClient();
+        initMailTransporter();
+
+        const cookies = parseCookies(process.env.I_CO);
+        const { browser, context } = await createBrowser(cookies);
+        let page = await context.newPage();
+        
+        const { valid } = await checkSession(page);
+        if (!valid) {
+            console.error('❌ Session Check Failed: Cookies might be expired.');
+            process.exit(1);
         }
-        await sleepMs(rand(CONFIG.cycleDelayMin, CONFIG.cycleDelayMax));
+
+        for (let i = 1; i <= CONFIG.rounds; i++) {
+            await runCycle(page, i);
+            await sleepMs(rand(CONFIG.cycleDelayMin, CONFIG.cycleDelayMax));
+        }
+        await browser.close();
+    } catch (mainErr) {
+        console.error('❌ Critical Error:', mainErr.message);
+        process.exit(1);
     }
-    await browser.close();
-    await sendSummary(timeStrEN());
 })();
