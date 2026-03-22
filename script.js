@@ -30,7 +30,7 @@ const CONFIG = {
         beforeNext:      [50, 150],
         beforeSkip:      [50, 150],
     },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     locale:    '',
     selectors: {
         listboxBtn: 'button[aria-haspopup="listbox"]',
@@ -269,12 +269,17 @@ async function processItem(page, item) {
         }
 
         await btns[0].click();
-        await sleep([300, 600]);
+        await sleep([600, 1000]);
+
+        const options = await page.getByRole('option').allInnerTexts();
+        const cleanOptions = options.map(t => t.trim()).filter(t => t.length > 0);
+        console.log(`🔍 [Item ${item.num}] Options:`, cleanOptions);
+        appendLog(`[TEST] Found options: ${cleanOptions.join(' | ')}`, batchStats.totalCycles);
 
         const option1 = optionLocator(page, CONFIG.selectors.option1);
         await option1.waitFor({ state: 'visible', timeout: 5000 });
         await option1.click();
-        await sleep([300, 600]);
+        await sleep([500, 800]);
 
         const freshBtns = await page.$$(CONFIG.selectors.listboxBtn);
         if (!freshBtns[1]) {
@@ -282,7 +287,7 @@ async function processItem(page, item) {
         }
 
         await freshBtns[1].click();
-        await sleep([300, 600]);
+        await sleep([500, 800]);
 
         const option2 = optionLocator(page, CONFIG.selectors.option2);
         await option2.waitFor({ state: 'visible', timeout: 5000 });
