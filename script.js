@@ -390,18 +390,19 @@ async function processItem(page, item) {
         await sleep(CONFIG.delays.beforeFirstBtn);
         const firstBtn = btns.nth(0);
 
-        try {
-            await clickRandomPoint(page, firstBtn, `I#${item.num} first button`);
-        } catch {
-            console.log(`⚠️ I#${item.num} - first button not clickable`);
-            return { status: 'pass', num: item.num, message: 'first button not clickable' };
-        }
+        const firstHandle = await firstBtn.elementHandle();
+        await page.evaluate(el => el.click(), firstHandle);
+        await sleep([800, 1200]);
+        
+        const allOptions = await page.locator('li, [role="option"], .option, .menu-item').allTextContents();
+        console.log('OPTIONS:', allOptions);
 
         const firstHandle = await firstBtn.elementHandle().catch(() => null);
         if (firstHandle) {
             await page.waitForFunction(el => el.getAttribute('aria-expanded') === 'true', firstHandle, { timeout: 5_000 }).catch(() => {});
         }
         await sleep([400, 800]);
+        
 
         const allOptions = await page.locator('li, button, div').allTextContents();
         console.log('OPTIONS:', allOptions);
