@@ -392,19 +392,10 @@ async function processItem(page, item) {
 
         const firstHandle = await firstBtn.elementHandle();
         await page.evaluate(el => el.click(), firstHandle);
+        await page.waitForFunction(el => el.getAttribute('aria-expanded') === 'true', firstHandle, { timeout: 5_000 }).catch(() => {});
         await sleep([800, 1200]);
         
         const allOptions = await page.locator('li, [role="option"], .option, .menu-item').allTextContents();
-        console.log('OPTIONS:', allOptions);
-
-        const firstHandle = await firstBtn.elementHandle().catch(() => null);
-        if (firstHandle) {
-            await page.waitForFunction(el => el.getAttribute('aria-expanded') === 'true', firstHandle, { timeout: 5_000 }).catch(() => {});
-        }
-        await sleep([400, 800]);
-        
-
-        const allOptions = await page.locator('li, button, div').allTextContents();
         console.log('OPTIONS:', allOptions);
 
         const option1 = optionLocator(page, CONFIG.selectors.option1);
