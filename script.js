@@ -101,8 +101,8 @@ const CONFIG = {
 
     scheduler: {
         // Reduced from [55k,90k]: site reverts in <2min, cycle is ~60s → poll every cycle
-        ok:               [20_000,  35_000],
-        stable:           [20_000,  35_000],
+        ok:               [5_000,  12_000],
+        stable:           [5_000,  12_000],
         pageError:        [12_000,  20_000],
         error:            [30_000,  60_000],
         failOdd:          [20_000,  35_000],
