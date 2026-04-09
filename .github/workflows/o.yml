@@ -2,15 +2,7 @@ name: I I E
 
 on:
   schedule:
-    # 3 runs per day targeting the best UTC hours from 3-run analysis:
-    #   06:00 UTC → covers 06-12 UTC  — hits best hours 7:00, 8:00 (stable 41-43%)
-    #   12:00 UTC → covers 12-18 UTC  — hits best hours 12:00, 15:00 (stable 47%, 41%)
-    #   21:00 UTC → covers 21-03 UTC  — hits best hours 23:00, 0:00 (stable 35%, 33%)
-    #
-    # Worst hours avoided:  2:00 UTC (9%), 5:00 UTC (7%), 6:00 UTC (16%), 10-11 UTC (16-18%)
-    - cron: '0 6 * * *'
-    - cron: '0 12 * * *'
-    - cron: '0 21 * * *'
+    - cron: '40 */6 * * *'
   workflow_dispatch:
 
 concurrency:
