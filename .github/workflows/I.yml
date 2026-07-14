@@ -84,7 +84,7 @@ jobs:
           TZ:    ${{ secrets.I_TZ }}
         run: node script.js
 
-      - name:
+      - name: Upload debug files
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -92,4 +92,4 @@ jobs:
           path: |
             debug-*.png
             debug-*.html
-          if-no-files-found: ignore
+          if-no-files-found: error
