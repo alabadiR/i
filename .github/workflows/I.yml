@@ -92,4 +92,5 @@ jobs:
           path: |
             debug-*.png
             debug-*.html
+            session-check-*.png
           if-no-files-found: error
