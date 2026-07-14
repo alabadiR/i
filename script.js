@@ -648,37 +648,68 @@ async function processItem(page, item) {
             return { status: 'pass', num: item.num, message: `buttons not found (${btnCount})` };
         }
 
+
         // ── First listbox ──────────────────────────────────────────
         const btn0 = btns.nth(0);
+        
         await humanInteract(page, btn0);
-        await btn0.click({ force: true, delay: rand(...CONFIG.delays.clickDelay) });
+        
+        console.log("========== BEFORE CLICK ==========");
+        console.log("Buttons found:", await btns.count());
+        console.log("btn0 role:", await btn0.getAttribute("role"));
+        console.log("btn0 aria-expanded (before):", await btn0.getAttribute("aria-expanded"));
+        console.log("==================================");
+        
+        await btn0.click({
+            force: true,
+            delay: rand(...CONFIG.delays.clickDelay)
+        });
+        
         await sleepRand(CONFIG.delays.afterFirstBtn);
-
         await page.waitForTimeout(1000);
-
-        console.log("========== DEBUG ==========");
         
-        console.log("Listbox visible:",
-            await page.locator('[role="listbox"]:visible').count());
+        console.log("========== AFTER CLICK ==========");
+        console.log("btn0 aria-expanded (after):", await btn0.getAttribute("aria-expanded"));
         
-        console.log("Option count:",
-            await page.locator('[role="listbox"]:visible [role="option"]').count());
+        console.log(
+            "Visible listboxes:",
+            await page.locator('[role="listbox"]:visible').count()
+        );
         
-        console.log("Option texts:");
+        console.log(
+            "Visible options:",
+            await page.locator('[role="listbox"]:visible [role="option"]').count()
+        );
         
         const options = await page
             .locator('[role="listbox"]:visible [role="option"]')
             .allTextContents();
         
+        console.log("Option texts:");
         console.log(options);
         
-        console.log("===========================");
-
-        const opt1Loc = page.locator('[role="listbox"]:visible [role="option"]').filter({ hasText: REGEX_OPTION1 });
+        console.log("=================================");
+        
+        // احفظ صورة للحالة بعد الضغط
+        await page.screenshot({
+            path: `debug-${item.num}.png`,
+            fullPage: true
+        });
+        
+        const opt1Loc = page
+            .locator('[role="listbox"]:visible [role="option"]')
+            .filter({ hasText: REGEX_OPTION1 });
+        
         if (await opt1Loc.count() === 0) {
             console.log(`⚠️  I#${item.num} - option1 not found`);
-            return { status: 'pass', num: item.num, message: 'option1 not found' };
+            return {
+                status: 'pass',
+                num: item.num,
+                message: 'option1 not found'
+            };
         }
+
+
         const opt1 = opt1Loc.first();
         await humanInteract(page, opt1);
         await opt1.click({ force: true });
