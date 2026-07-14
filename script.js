@@ -655,6 +655,12 @@ async function processItem(page, item) {
         await btn0.click({ force: true, delay: rand(...CONFIG.delays.clickDelay) });
         await sleepRand(CONFIG.delays.afterFirstBtn);
 
+        await page.waitForTimeout(1000);
+        const options = await page.getByRole('option').allTextContents();
+        console.log("========== OPTIONS ==========");
+        console.log(options);
+        console.log("=============================");
+
         const opt1Loc = page.locator('[role="listbox"]:visible [role="option"]').filter({ hasText: REGEX_OPTION1 });
         if (await opt1Loc.count() === 0) {
             console.log(`⚠️  I#${item.num} - option1 not found`);
