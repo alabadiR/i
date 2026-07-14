@@ -949,8 +949,8 @@ async function resetEngine(cookies, cycleNum) {
 
     const runStartTime = timeStrEN();
 
-    const { valid } = await checkSession(page, 'startup');
-    if (!valid) {
+    const { valid: startupValid } = await checkSession(page, 'startup');
+    if (!startupValid) {
         await haltAndNotify(browser, context, 'Session invalid before batch start.');
     }
     
