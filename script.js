@@ -575,23 +575,61 @@ async function newPage(context) {
 async function checkSession(page, label = 'general') {
     batchStats.sessionChecks++;
     console.log(`🔐 Check (${label})...`);
+
     const probe = CONFIG.items[Math.floor(Math.random() * CONFIG.items.length)];
 
     for (let attempt = 1; attempt <= CONFIG.cookieRetries; attempt++) {
         try {
-            await page.goto(probe.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-            const found = await page.waitForSelector(CONFIG.selectors.listboxBtn, { timeout: 10_000 })
-                .then(() => true).catch(() => false);
-            if (found) { console.log('✅ Session ok'); return { valid: true }; }
-            console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - button not found`);
+            await page.goto(probe.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+            await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+            await page.waitForTimeout(1200);
+
+            const url = page.url().toLowerCase();
+            const bodyText = await page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
+            const text = bodyText.replace(/\s+/g, ' ').trim();
+
+            const hasEditFields =
+                (await page.locator('#postEdit').count()) > 0 &&
+                (await page.locator('#postBody').count()) > 0 &&
+                (await page.locator('#contactEdit').count()) > 0;
+
+            const hasSaveButton =
+                (await page.getByRole('button', { name: /^حفظ$/u }).count().catch(() => 0)) > 0 ||
+                (await page.locator('button:has-text("حفظ")').count().catch(() => 0)) > 0;
+
+            const authRedirect =
+                /\/login|\/signin|\/auth|\/account\/login/i.test(url);
+
+            const authText =
+                /تسجيل الدخول|سجل الدخول|دخول إلى حسابك|إنشاء حساب/i.test(text);
+
+            const valid = hasEditFields && hasSaveButton && !authRedirect && !authText;
+
+            if (valid) {
+                console.log('✅ Session ok');
+                return { valid: true };
+            }
+
+            console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - session not valid`);
+            console.warn(`   url=${page.url()}`);
+            console.warn(`   hasEditFields=${hasEditFields}`);
+            console.warn(`   hasSaveButton=${hasSaveButton}`);
+            console.warn(`   authRedirect=${authRedirect}`);
+            console.warn(`   authText=${authText}`);
+
         } catch (err) {
             console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - ${err.message}`);
         }
-        if (attempt < CONFIG.cookieRetries) await sleepMs(CONFIG.cookieRetryDelay);
+
+        if (attempt < CONFIG.cookieRetries) {
+            await sleepMs(CONFIG.cookieRetryDelay);
+        }
     }
+
     console.error('❌ Session check failed');
     return { valid: false };
 }
+
 
 // ─────────────────────────────────────────────
 //  HELPERS
@@ -905,17 +943,12 @@ async function resetEngine(cookies, cycleNum) {
 
     const { valid } = await checkSession(page, 'startup');
     if (!valid) await haltAndNotify(browser, context, 'Session invalid before batch start.');
-    
-    console.log("========== LOGIN CHECK ==========");
-    
-    const bodyText = await page.locator("body").innerText();
-    
-    console.log("Contains دخول:", bodyText.includes("دخول"));
-    console.log("Contains تسجيل الدخول:", bodyText.includes("تسجيل الدخول"));
-    console.log("Contains حسابي:", bodyText.includes("حسابي"));
-    console.log("Contains خروج:", bodyText.includes("خروج"));
-    
-    console.log("================================");
+
+    const { valid } = await checkSession(page, 'startup');
+    console.log("========== SESSION ==========");
+    console.log("Current URL:", page.url());
+    console.log("=============================");
+
     
     const warmUp = Math.floor(Math.random() * CONFIG.startDelayMax);
     
