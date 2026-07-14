@@ -652,6 +652,11 @@ async function processItem(page, item) {
         const btn0 = btns.nth(0);
         await humanInteract(page, btn0);
         await btn0.click({ force: true, delay: rand(...CONFIG.delays.clickDelay) });
+        await page.waitForTimeout(1500);
+
+        console.log("========== PAGE HTML ==========");
+        console.log(await page.content());
+        console.log("==============================");
         await sleepRand(CONFIG.delays.afterFirstBtn);
 
         const opt1Loc = page.locator('[role="listbox"]:visible [role="option"]').filter({ hasText: REGEX_OPTION1 });
