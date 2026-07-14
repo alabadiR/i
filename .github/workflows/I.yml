@@ -68,6 +68,7 @@ jobs:
         run: npx playwright install-deps chromium
 
       - name: Run node script.js
+              node script.js
         env:
           I_CO:  ${{ secrets.I_CO }}
           M_P:   ${{ secrets.M_P }}
