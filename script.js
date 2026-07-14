@@ -652,12 +652,27 @@ async function processItem(page, item) {
         const btn0 = btns.nth(0);
         await humanInteract(page, btn0);
         await btn0.click({ force: true, delay: rand(...CONFIG.delays.clickDelay) });
-        await page.waitForTimeout(1500);
-
-        console.log("========== PAGE HTML ==========");
-        console.log(await page.content());
-        console.log("==============================");
         await sleepRand(CONFIG.delays.afterFirstBtn);
+
+        await page.waitForTimeout(1000);
+
+        console.log("========== DEBUG ==========");
+        
+        console.log("Listbox visible:",
+            await page.locator('[role="listbox"]:visible').count());
+        
+        console.log("Option count:",
+            await page.locator('[role="listbox"]:visible [role="option"]').count());
+        
+        console.log("Option texts:");
+        
+        const options = await page
+            .locator('[role="listbox"]:visible [role="option"]')
+            .allTextContents();
+        
+        console.log(options);
+        
+        console.log("===========================");
 
         const opt1Loc = page.locator('[role="listbox"]:visible [role="option"]').filter({ hasText: REGEX_OPTION1 });
         if (await opt1Loc.count() === 0) {
