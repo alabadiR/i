@@ -83,12 +83,6 @@ jobs:
           I_REF: ${{ secrets.I_REF }}
           TZ:    ${{ secrets.I_TZ }}
         run: node script.
-
-
-      - name: Restore storageState
-        run: |
-         echo "${{ secrets.HARAJ_STORAGE_STATE }}" | base64 -d > haraj_session_clean.json
-
         
 
       - name: Upload debug files
