@@ -475,7 +475,8 @@ function parseCookies(raw) {
 
 async function createBrowser(cookies) {
     const browser = await chromium.launch({
-        headless: true,
+        headless: false,
+        slowMo: 300,
         args: ['--no-sandbox', '--disable-setuid-sandbox',
                '--disable-blink-features=AutomationControlled', '--disable-infobars'],
     });
