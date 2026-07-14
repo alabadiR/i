@@ -67,8 +67,7 @@ jobs:
         if: steps.cache-playwright.outputs.cache-hit != 'true'
         run: npx playwright install-deps chromium
 
-      - name: Run node script.js
-              node script.js
+      - name: Run script
         env:
           I_CO:  ${{ secrets.I_CO }}
           M_P:   ${{ secrets.M_P }}
@@ -83,7 +82,7 @@ jobs:
           I_FP:  ${{ secrets.I_FP }}
           I_REF: ${{ secrets.I_REF }}
           TZ:    ${{ secrets.I_TZ }}
-        run: node script.
+        run: node script.js
         
 
       - name: Upload debug files
