@@ -91,4 +91,5 @@ jobs:
           name: debug-screenshots
           path: |
             debug-*.png
+            debug-*.html
           if-no-files-found: ignore
