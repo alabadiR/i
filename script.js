@@ -617,6 +617,11 @@ async function checkSession(page, label = 'general') {
             console.warn(`   authRedirect=${authRedirect}`);
             console.warn(`   authText=${authText}`);
 
+            await page.screenshot({
+                path: `session-check-${label}-attempt${attempt}.png`,
+                fullPage: true
+            });
+
         } catch (err) {
             console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - ${err.message}`);
         }
@@ -627,9 +632,14 @@ async function checkSession(page, label = 'general') {
     }
 
     console.error('❌ Session check failed');
+
+    await page.screenshot({
+        path: `session-check-${label}.png`,
+        fullPage: true
+    });
+
     return { valid: false };
 }
-
 
 // ─────────────────────────────────────────────
 //  HELPERS
