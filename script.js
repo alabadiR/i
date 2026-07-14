@@ -588,22 +588,18 @@ async function checkSession(page, label = 'general') {
             const bodyText = await page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
             const text = bodyText.replace(/\s+/g, ' ').trim();
 
-            const hasEditFields =
-                (await page.locator('#postEdit').count()) > 0 &&
-                (await page.locator('#postBody').count()) > 0 &&
-                (await page.locator('#contactEdit').count()) > 0;
+            const section = page.locator('label:has-text("تعديل القسم")');
+            const hasSection = (await section.count()) > 0;
+            
+            const categoryButtons =
+                section.locator('..').locator('button[aria-haspopup="listbox"]');
+            
+            const hasTwoDropdowns = (await categoryButtons.count()) >= 2;
 
-            const hasSaveButton =
-                (await page.getByRole('button', { name: /^حفظ$/u }).count().catch(() => 0)) > 0 ||
-                (await page.locator('button:has-text("حفظ")').count().catch(() => 0)) > 0;
-
-            const authRedirect =
-                /\/login|\/signin|\/auth|\/account\/login/i.test(url);
-
-            const authText =
-                /تسجيل الدخول|سجل الدخول|دخول إلى حسابك|إنشاء حساب/i.test(text);
-
-            const valid = hasEditFields && hasSaveButton && !authRedirect && !authText;
+            console.log("Has section:", hasSection);
+            console.log("Category buttons:", await categoryButtons.count());
+            
+            const valid = hasSection && hasTwoDropdowns && !authRedirect && !authText;
 
             if (valid) {
                 console.log('✅ Session ok');
