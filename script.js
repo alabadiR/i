@@ -949,16 +949,17 @@ async function resetEngine(cookies, cycleNum) {
 
     let { browser, context } = await createBrowser(cookies);
     let page                 = await newPage(context);
-    const runStartTime       = timeStrEN();
+
+    const runStartTime = timeStrEN();
 
     const { valid } = await checkSession(page, 'startup');
-    if (!valid) await haltAndNotify(browser, context, 'Session invalid before batch start.');
-
-    const { valid } = await checkSession(page, 'startup');
+    if (!valid) {
+        await haltAndNotify(browser, context, 'Session invalid before batch start.');
+    }
+    
     console.log("========== SESSION ==========");
     console.log("Current URL:", page.url());
     console.log("=============================");
-
     
     const warmUp = Math.floor(Math.random() * CONFIG.startDelayMax);
     
