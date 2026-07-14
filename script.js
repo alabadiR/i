@@ -905,8 +905,20 @@ async function resetEngine(cookies, cycleNum) {
 
     const { valid } = await checkSession(page, 'startup');
     if (!valid) await haltAndNotify(browser, context, 'Session invalid before batch start.');
-
+    
+    console.log("========== LOGIN CHECK ==========");
+    
+    const bodyText = await page.locator("body").innerText();
+    
+    console.log("Contains دخول:", bodyText.includes("دخول"));
+    console.log("Contains تسجيل الدخول:", bodyText.includes("تسجيل الدخول"));
+    console.log("Contains حسابي:", bodyText.includes("حسابي"));
+    console.log("Contains خروج:", bodyText.includes("خروج"));
+    
+    console.log("================================");
+    
     const warmUp = Math.floor(Math.random() * CONFIG.startDelayMax);
+    
     if (warmUp > 1000) { console.log(`⏳ Warm-up: ${(warmUp/1000).toFixed(1)}s`); await sleepMs(warmUp); }
 
     RUN_END = Date.now() + CONFIG.runDurationMin * 60_000;
