@@ -590,16 +590,18 @@ async function checkSession(page, label = 'general') {
 
             const section = page.locator('label:has-text("تعديل القسم")');
             const hasSection = (await section.count()) > 0;
-            
-            const categoryButtons =
-                section.locator('..').locator('button[aria-haspopup="listbox"]');
-            
-            const hasTwoDropdowns = (await categoryButtons.count()) >= 2;
 
-            console.log("Has section:", hasSection);
-            console.log("Category buttons:", await categoryButtons.count());
-            
+            const categoryButtons = section.locator('..').locator('button[aria-haspopup="listbox"]');
+            const categoryCount = await categoryButtons.count();
+            const hasTwoDropdowns = categoryCount >= 2;
+
+            const authRedirect = /\/login|\/signin|\/auth|\/account\/login/i.test(url);
+            const authText = /تسجيل الدخول|سجل الدخول|دخول إلى حسابك|إنشاء حساب/i.test(text);
+
             const valid = hasSection && hasTwoDropdowns && !authRedirect && !authText;
+
+            console.log(`Has section: ${hasSection}`);
+            console.log(`Category buttons: ${categoryCount}`);
 
             if (valid) {
                 console.log('✅ Session ok');
@@ -608,8 +610,8 @@ async function checkSession(page, label = 'general') {
 
             console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - session not valid`);
             console.warn(`   url=${page.url()}`);
-            console.warn(`   hasEditFields=${hasEditFields}`);
-            console.warn(`   hasSaveButton=${hasSaveButton}`);
+            console.warn(`   hasSection=${hasSection}`);
+            console.warn(`   categoryButtons=${categoryCount}`);
             console.warn(`   authRedirect=${authRedirect}`);
             console.warn(`   authText=${authText}`);
 
@@ -636,7 +638,6 @@ async function checkSession(page, label = 'general') {
 
     return { valid: false };
 }
-
 // ─────────────────────────────────────────────
 //  HELPERS
 // ─────────────────────────────────────────────
