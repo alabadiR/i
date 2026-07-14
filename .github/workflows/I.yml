@@ -67,7 +67,7 @@ jobs:
         if: steps.cache-playwright.outputs.cache-hit != 'true'
         run: npx playwright install-deps chromium
 
-      - name: Run script
+      - name: Run node script.js
         env:
           I_CO:  ${{ secrets.I_CO }}
           M_P:   ${{ secrets.M_P }}
