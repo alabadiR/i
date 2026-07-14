@@ -83,15 +83,3 @@ jobs:
           I_REF: ${{ secrets.I_REF }}
           TZ:    ${{ secrets.I_TZ }}
         run: node script.js
-        
-
-      - name: Upload debug files
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-screenshots
-          path: |
-            debug-*.png
-            debug-*.html
-            session-check-*.png
-          if-no-files-found: error
