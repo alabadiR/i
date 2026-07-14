@@ -475,7 +475,7 @@ function parseCookies(raw) {
 
 async function createBrowser(cookies) {
     const browser = await chromium.launch({
-        slowMo: 300,
+        headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox',
                '--disable-blink-features=AutomationControlled', '--disable-infobars'],
     });
@@ -575,69 +575,24 @@ async function newPage(context) {
 async function checkSession(page, label = 'general') {
     batchStats.sessionChecks++;
     console.log(`🔐 Check (${label})...`);
-
     const probe = CONFIG.items[Math.floor(Math.random() * CONFIG.items.length)];
 
     for (let attempt = 1; attempt <= CONFIG.cookieRetries; attempt++) {
         try {
-            await page.goto(probe.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-            await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-            await page.waitForTimeout(1200);
-
-            const url = page.url().toLowerCase();
-            const bodyText = await page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
-            const text = bodyText.replace(/\s+/g, ' ').trim();
-
-            const section = page.locator('label:has-text("تعديل القسم")');
-            const hasSection = (await section.count()) > 0;
-
-            const categoryButtons = section.locator('..').locator('button[aria-haspopup="listbox"]');
-            const categoryCount = await categoryButtons.count();
-            const hasTwoDropdowns = categoryCount >= 2;
-
-            const authRedirect = /\/login|\/signin|\/auth|\/account\/login/i.test(url);
-            const authText = /تسجيل الدخول|سجل الدخول|دخول إلى حسابك|إنشاء حساب/i.test(text);
-
-            const valid = hasSection && hasTwoDropdowns && !authRedirect && !authText;
-
-            console.log(`Has section: ${hasSection}`);
-            console.log(`Category buttons: ${categoryCount}`);
-
-            if (valid) {
-                console.log('✅ Session ok');
-                return { valid: true };
-            }
-
-            console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - session not valid`);
-            console.warn(`   url=${page.url()}`);
-            console.warn(`   hasSection=${hasSection}`);
-            console.warn(`   categoryButtons=${categoryCount}`);
-            console.warn(`   authRedirect=${authRedirect}`);
-            console.warn(`   authText=${authText}`);
-
-            await page.screenshot({
-                path: `session-check-${label}-attempt${attempt}.png`,
-                fullPage: true
-            });
-
+            await page.goto(probe.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+            const found = await page.waitForSelector(CONFIG.selectors.listboxBtn, { timeout: 10_000 })
+                .then(() => true).catch(() => false);
+            if (found) { console.log('✅ Session ok'); return { valid: true }; }
+            console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - button not found`);
         } catch (err) {
             console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - ${err.message}`);
         }
-
-        if (attempt < CONFIG.cookieRetries) {
-            await sleepMs(CONFIG.cookieRetryDelay);
-        }
+        if (attempt < CONFIG.cookieRetries) await sleepMs(CONFIG.cookieRetryDelay);
     }
-
     console.error('❌ Session check failed');
-
-    await page.screenshot({
-        path: `session-check-${label}.png`,
-        fullPage: true
-    });
-
     return { valid: false };
 }
+
 // ─────────────────────────────────────────────
 //  HELPERS
 // ─────────────────────────────────────────────
@@ -693,68 +648,17 @@ async function processItem(page, item) {
             return { status: 'pass', num: item.num, message: `buttons not found (${btnCount})` };
         }
 
-
         // ── First listbox ──────────────────────────────────────────
         const btn0 = btns.nth(0);
-        
         await humanInteract(page, btn0);
-        
-        console.log("========== BEFORE CLICK ==========");
-        console.log("Buttons found:", await btns.count());
-        console.log("btn0 role:", await btn0.getAttribute("role"));
-        console.log("btn0 aria-expanded (before):", await btn0.getAttribute("aria-expanded"));
-        console.log("==================================");
-        
-        await btn0.click({
-            force: true,
-            delay: rand(...CONFIG.delays.clickDelay)
-        });
-        
+        await btn0.click({ force: true, delay: rand(...CONFIG.delays.clickDelay) });
         await sleepRand(CONFIG.delays.afterFirstBtn);
-        await page.waitForTimeout(1000);
-        
-        console.log("========== AFTER CLICK ==========");
-        console.log("btn0 aria-expanded (after):", await btn0.getAttribute("aria-expanded"));
-        
-        console.log(
-            "Visible listboxes:",
-            await page.locator('[role="listbox"]:visible').count()
-        );
-        
-        console.log(
-            "Visible options:",
-            await page.locator('[role="listbox"]:visible [role="option"]').count()
-        );
-        
-        const options = await page
-            .locator('[role="listbox"]:visible [role="option"]')
-            .allTextContents();
-        
-        console.log("Option texts:");
-        console.log(options);
-        
-        console.log("=================================");
-        
-        // احفظ صورة للحالة بعد الضغط
-        await page.screenshot({
-            path: `debug-${item.num}.png`,
-            fullPage: true
-        });
-        
-        const opt1Loc = page
-            .locator('[role="listbox"]:visible [role="option"]')
-            .filter({ hasText: REGEX_OPTION1 });
-        
+
+        const opt1Loc = page.locator('[role="listbox"]:visible [role="option"]').filter({ hasText: REGEX_OPTION1 });
         if (await opt1Loc.count() === 0) {
             console.log(`⚠️  I#${item.num} - option1 not found`);
-            return {
-                status: 'pass',
-                num: item.num,
-                message: 'option1 not found'
-            };
+            return { status: 'pass', num: item.num, message: 'option1 not found' };
         }
-
-
         const opt1 = opt1Loc.first();
         await humanInteract(page, opt1);
         await opt1.click({ force: true });
@@ -946,20 +850,12 @@ async function resetEngine(cookies, cycleNum) {
 
     let { browser, context } = await createBrowser(cookies);
     let page                 = await newPage(context);
+    const runStartTime       = timeStrEN();
 
-    const runStartTime = timeStrEN();
+    const { valid } = await checkSession(page, 'startup');
+    if (!valid) await haltAndNotify(browser, context, 'Session invalid before batch start.');
 
-    const { valid: startupValid } = await checkSession(page, 'startup');
-    if (!startupValid) {
-        await haltAndNotify(browser, context, 'Session invalid before batch start.');
-    }
-    
-    console.log("========== SESSION ==========");
-    console.log("Current URL:", page.url());
-    console.log("=============================");
-    
     const warmUp = Math.floor(Math.random() * CONFIG.startDelayMax);
-    
     if (warmUp > 1000) { console.log(`⏳ Warm-up: ${(warmUp/1000).toFixed(1)}s`); await sleepMs(warmUp); }
 
     RUN_END = Date.now() + CONFIG.runDurationMin * 60_000;
