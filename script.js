@@ -639,12 +639,37 @@ async function checkSession(page, label = 'general') {
         );
     });
 
+    page.on('request', req => {
+    console.log(
+        'REQUEST:',
+        req.method(),
+        req.url()
+    );
+    });
+    
+    page.on('console', msg => {
+        console.log(
+            'BROWSER LOG:',
+            msg.type(),
+            msg.text()
+        );
+    });
+    
+    page.on('pageerror', err => {
+        console.log(
+            'PAGE ERROR:',
+            err.message
+        );
+    });
+
     for (let attempt = 1; attempt <= CONFIG.cookieRetries; attempt++) {
         try {
             await page.goto(probe.url, {
                 waitUntil: 'domcontentloaded',
                 timeout: 30_000
             });
+
+            await page.waitForTimeout(10000);
 
             const html = await page.content();
 
