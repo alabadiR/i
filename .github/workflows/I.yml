@@ -83,6 +83,9 @@ jobs:
           I_REF: ${{ secrets.I_REF }}
           TZ:    ${{ secrets.I_TZ }}
 
+          I_LOGIN_STORAGE: ${{ secrets.I_LOGIN_STORAGE }}
+          I_META_STORAGE: ${{ secrets.I_META_STORAGE }}
+
         run: node script.js
 
 
