@@ -634,6 +634,22 @@ async function checkSession(page, label = 'general') {
 
 const sanitizeError = (msg) => msg.replace(/https?:\/\/\S+/g, '[URL]').split('\n')[0];
 
+async function saveSessionFailureShot(page, label, attempt, reason) {
+    try {
+        ensureDirs();
+        const safeReason = String(reason || 'unknown')
+            .replace(/[^a-z0-9-_]+/gi, '_')
+            .slice(0, 40);
+        const fileName = `logs/session-failed-${label}-a${attempt}-${safeReason}-${Date.now()}.png`;
+        await page.screenshot({ path: fileName, fullPage: true });
+        console.log(`📸 Saved screenshot: ${fileName}`);
+        return fileName;
+    } catch (err) {
+        console.warn(`⚠️  Screenshot failed: ${err.message}`);
+        return null;
+    }
+}
+
 function withTimeout(promise, ms) {
     let t;
     return Promise.race([
