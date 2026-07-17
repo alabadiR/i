@@ -83,6 +83,9 @@ jobs:
           I_REF: ${{ secrets.I_REF }}
           TZ:    ${{ secrets.I_TZ }}
 
+        run: node script.js
+
+
       - name: Upload debug screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -91,4 +94,3 @@ jobs:
            path: logs/*.png
            retention-days: 3
 
-   run: node script.js
