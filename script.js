@@ -516,6 +516,12 @@ async function createBrowser(cookies) {
         !!process.env.I_META_STORAGE
     );
 
+    console.log(
+    'ENV KEYS:',
+    Object.keys(process.env)
+    .filter(x => x.includes('LOGIN') || x.includes('META'))
+    );
+
     await context.addInitScript((loginData, metaData) => {
 
         localStorage.setItem('login', loginData);
