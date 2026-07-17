@@ -91,4 +91,4 @@ jobs:
            path: logs/*.png
            retention-days: 3
 
-         run: node script.js
+   run: node script.js
