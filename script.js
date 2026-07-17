@@ -631,6 +631,24 @@ async function checkSession(page, label = 'general') {
     console.log(`🔐 Check (${label})...`);
     const probe = CONFIG.items[Math.floor(Math.random() * CONFIG.items.length)];
 
+    page.on('request', req => {
+
+        if (req.url().includes('graphql')) {
+
+            console.log(
+                'GRAPHQL URL:',
+                req.url()
+            );
+
+            console.log(
+                'GRAPHQL HEADERS:',
+                req.headers()
+            );
+
+        }
+
+    });
+
     for (let attempt = 1; attempt <= CONFIG.cookieRetries; attempt++) {
         try {
             await page.goto(probe.url, {
