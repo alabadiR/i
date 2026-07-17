@@ -594,9 +594,24 @@ async function checkSession(page, label = 'general') {
 
     for (let attempt = 1; attempt <= CONFIG.cookieRetries; attempt++) {
         try {
-            await page.goto(probe.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-
-            const loginBtnCount = await page.locator('button[data-testid="login-link"]').count();
+            await page.goto(probe.url, {
+    waitUntil: 'domcontentloaded',
+    timeout: 30_000
+    });
+    
+    const pageCookies = await page.context().cookies();
+    
+    console.log(
+        '🔍 accessToken after goto:',
+        pageCookies.some(c => c.name === 'accessToken')
+    );
+    
+    console.log(
+        '🔍 Cookie count:',
+        pageCookies.length
+    );
+    
+    const loginBtnCount = await page.locator('button[data-testid="login-link"]').count();
             if (loginBtnCount > 0) {
                 console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - login button visible`);
                 await saveSessionFailureShot(page, label, attempt, 'login-button');
