@@ -663,8 +663,25 @@ async function checkSession(page, label = 'general') {
     );
     
     const pageCookies = await page.context().cookies();
+
+            console.log(
+    'CURRENT URL:',
+    page.url()
+    );
     
     console.log(
+        'PAGE TITLE:',
+        await page.title()
+    );
+    
+    console.log(
+        'BODY PREVIEW:',
+        (
+            await page.locator('body').innerText()
+        ).slice(0, 1000)
+    );
+        
+        console.log(
         '🔍 accessToken after goto:',
         pageCookies.some(c => c.name === 'accessToken')
     );
