@@ -514,6 +514,21 @@ async function createBrowser(cookies) {
 
     await context.addCookies(cookies);
 
+    await context.addInitScript((storage) => {
+
+    for (const [key, value] of Object.entries(storage)) {
+
+        if (value) {
+            localStorage.setItem(key, value);
+        }
+
+    }
+
+}, {
+    login: process.env.I_LOGIN_STORAGE || '',
+    meta: process.env.I_META_STORAGE || ''
+});
+
     // DEBUG
     const loadedCookies = await context.cookies();
     
