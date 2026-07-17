@@ -629,12 +629,22 @@ async function checkSession(page, label = 'general') {
         data[k] = localStorage.getItem(k);
     }
     return data;
-});
-
-console.log(
-    'LOCAL STORAGE KEYS:',
-    Object.keys(localStorageDump)
-);
+    });
+    
+    console.log(
+        'LOCAL STORAGE KEYS:',
+        Object.keys(localStorageDump)
+    );
+    
+                console.log(
+        'LOGIN STORAGE:',
+        localStorageDump.login?.substring(0, 500)
+    );
+    
+    console.log(
+        'META STORAGE:',
+        localStorageDump.meta?.substring(0, 500)
+    );
     
     const pageCookies = await page.context().cookies();
     
