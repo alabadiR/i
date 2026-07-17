@@ -646,6 +646,13 @@ async function checkSession(page, label = 'general') {
                 timeout: 30_000
             });
 
+            const html = await page.content();
+
+            console.log(
+                'HTML PREVIEW:',
+                html.slice(0, 5000)
+            );
+
             const allCookies = await page.context().cookies();
             console.log(
                 'ALL COOKIES:',
