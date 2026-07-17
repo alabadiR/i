@@ -581,10 +581,10 @@ async function checkSession(page, label = 'general') {
         try {
             await page.goto(probe.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-            // 1) الزر القاطع: إذا ظهر، فالجلسة منتهية
-            const loginBtn = await page.locator('button[data-testid="login-link"]').count();
-            if (loginBtn > 0) {
-                console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - Login button found`);
+            const loginBtnCount = await page.locator('button[data-testid="login-link"]').count();
+            if (loginBtnCount > 0) {
+                console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - login button visible`);
+                await saveSessionFailureShot(page, label, attempt, 'login-button');
                 if (attempt < CONFIG.cookieRetries) {
                     await sleepMs(CONFIG.cookieRetryDelay);
                     continue;
@@ -592,10 +592,10 @@ async function checkSession(page, label = 'general') {
                 return { valid: false };
             }
 
-            // 2) فحص احترازي: هل الصفحة أعادتك إلى صفحة الدخول؟
             const currentUrl = page.url().toLowerCase();
             if (currentUrl.includes('login') || currentUrl.includes('signin')) {
-                console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - Redirected to login page`);
+                console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - redirected to login page`);
+                await saveSessionFailureShot(page, label, attempt, 'redirect-login');
                 if (attempt < CONFIG.cookieRetries) {
                     await sleepMs(CONFIG.cookieRetryDelay);
                     continue;
@@ -603,10 +603,10 @@ async function checkSession(page, label = 'general') {
                 return { valid: false };
             }
 
-            // 3) تأكيد أن الصفحة تحمل مكونات العمل الأساسية
             const btnCount = await page.locator(CONFIG.selectors.listboxBtn).count();
             if (btnCount < 2) {
-                console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - Only ${btnCount} listbox(es)`);
+                console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - only ${btnCount} listbox(es)`);
+                await saveSessionFailureShot(page, label, attempt, `listbox-${btnCount}`);
                 if (attempt < CONFIG.cookieRetries) {
                     await sleepMs(CONFIG.cookieRetryDelay);
                     continue;
@@ -619,9 +619,12 @@ async function checkSession(page, label = 'general') {
 
         } catch (err) {
             console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - ${err.message}`);
-        }
+            await saveSessionFailureShot(page, label, attempt, 'exception');
 
-        if (attempt < CONFIG.cookieRetries) await sleepMs(CONFIG.cookieRetryDelay);
+            if (attempt < CONFIG.cookieRetries) {
+                await sleepMs(CONFIG.cookieRetryDelay);
+            }
+        }
     }
 
     console.error('❌ Session check failed');
