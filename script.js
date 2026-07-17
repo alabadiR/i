@@ -598,6 +598,20 @@ async function checkSession(page, label = 'general') {
     waitUntil: 'domcontentloaded',
     timeout: 30_000
     });
+
+     const localStorageDump = await page.evaluate(() => {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        data[k] = localStorage.getItem(k);
+    }
+    return data;
+});
+
+console.log(
+    'LOCAL STORAGE KEYS:',
+    Object.keys(localStorageDump)
+);
     
     const pageCookies = await page.context().cookies();
     
