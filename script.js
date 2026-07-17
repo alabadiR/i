@@ -506,6 +506,16 @@ async function createBrowser(cookies) {
         permissions:      ['notifications'],
     });
 
+    console.log(
+    'I_LOGIN_STORAGE exists:',
+    !!process.env.I_LOGIN_STORAGE
+    );
+    
+    console.log(
+        'I_META_STORAGE exists:',
+        !!process.env.I_META_STORAGE
+    );
+
     await context.addInitScript((loginData, metaData) => {
 
         localStorage.setItem('login', loginData);
