@@ -506,6 +506,14 @@ async function createBrowser(cookies) {
         permissions:      ['notifications'],
     });
 
+    await context.addInitScript((loginData, metaData) => {
+
+        localStorage.setItem('login', loginData);
+    
+        localStorage.setItem('meta', metaData);
+    
+    }, process.env.I_LOGIN_STORAGE, process.env.I_META_STORAGE);
+
     // Block images, fonts, trackers — no functional value
     const BLOCK_RE = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|eot|svg)(\?|$)|analytics|tracking|collect|beacon/i;
     await context.route('**/*', route =>
