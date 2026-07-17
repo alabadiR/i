@@ -662,8 +662,12 @@ async function checkSession(page, label = 'general') {
             });
 
             console.log(
-                'LOCAL STORAGE KEYS:',
-                Object.keys(localStorageDump)
+                'FULL LOCAL STORAGE:',
+                JSON.stringify(
+                    localStorageDump,
+                    null,
+                    2
+                )
             );
 
             console.log(
