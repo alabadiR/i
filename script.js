@@ -580,15 +580,50 @@ async function checkSession(page, label = 'general') {
     for (let attempt = 1; attempt <= CONFIG.cookieRetries; attempt++) {
         try {
             await page.goto(probe.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-            const found = await page.waitForSelector(CONFIG.selectors.listboxBtn, { timeout: 10_000 })
-                .then(() => true).catch(() => false);
-            if (found) { console.log('✅ Session ok'); return { valid: true }; }
-            console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - button not found`);
+
+            // 1) الزر القاطع: إذا ظهر، فالجلسة منتهية
+            const loginBtn = await page.locator('button[data-testid="login-link"]').count();
+            if (loginBtn > 0) {
+                console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - Login button found`);
+                if (attempt < CONFIG.cookieRetries) {
+                    await sleepMs(CONFIG.cookieRetryDelay);
+                    continue;
+                }
+                return { valid: false };
+            }
+
+            // 2) فحص احترازي: هل الصفحة أعادتك إلى صفحة الدخول؟
+            const currentUrl = page.url().toLowerCase();
+            if (currentUrl.includes('login') || currentUrl.includes('signin')) {
+                console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - Redirected to login page`);
+                if (attempt < CONFIG.cookieRetries) {
+                    await sleepMs(CONFIG.cookieRetryDelay);
+                    continue;
+                }
+                return { valid: false };
+            }
+
+            // 3) تأكيد أن الصفحة تحمل مكونات العمل الأساسية
+            const btnCount = await page.locator(CONFIG.selectors.listboxBtn).count();
+            if (btnCount < 2) {
+                console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - Only ${btnCount} listbox(es)`);
+                if (attempt < CONFIG.cookieRetries) {
+                    await sleepMs(CONFIG.cookieRetryDelay);
+                    continue;
+                }
+                return { valid: false };
+            }
+
+            console.log('✅ Session ok');
+            return { valid: true };
+
         } catch (err) {
             console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - ${err.message}`);
         }
+
         if (attempt < CONFIG.cookieRetries) await sleepMs(CONFIG.cookieRetryDelay);
     }
+
     console.error('❌ Session check failed');
     return { valid: false };
 }
