@@ -476,8 +476,12 @@ function parseCookies(raw) {
 async function createBrowser(cookies) {
     const browser = await chromium.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox',
-               '--disable-blink-features=AutomationControlled', '--disable-infobars'],
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-blink-features=AutomationControlled',
+            '--disable-infobars'
+        ],
     });
 
     const ua      = FP.ua;
@@ -493,42 +497,34 @@ async function createBrowser(cookies) {
         headers['sec-ch-ua-mobile']   = '?0';
         headers['sec-ch-ua-platform'] = `"${FP.platform || 'Windows'}"`;
     }
+
     const ref = norm(process.env.I_REF || '');
     if (ref) headers['Referer'] = ref;
 
     const context = await browser.newContext({
-        userAgent:        ua,
-        locale:           CONFIG.locale,
-        timezoneId:       CONFIG.timezone,
-        colorScheme:      FP.colorScheme || 'dark',
-        viewport:         { width: FP.w, height: FP.h },
+        userAgent:   ua,
+        locale:      CONFIG.locale,
+        timezoneId:  CONFIG.timezone,
+        colorScheme: FP.colorScheme || 'dark',
+        viewport:    { width: FP.w, height: FP.h },
         extraHTTPHeaders: headers,
-        permissions:      ['notifications'],
+        permissions: ['notifications'],
     });
 
+    console.log('I_LOGIN_STORAGE exists:', !!process.env.I_LOGIN_STORAGE);
+    console.log('I_META_STORAGE exists:', !!process.env.I_META_STORAGE);
     console.log(
-    'I_LOGIN_STORAGE exists:',
-    !!process.env.I_LOGIN_STORAGE
-    );
-    
-    console.log(
-        'I_META_STORAGE exists:',
-        !!process.env.I_META_STORAGE
+        'ENV KEYS:',
+        Object.keys(process.env).filter(x => x.includes('LOGIN') || x.includes('META'))
     );
 
-    console.log(
-    'ENV KEYS:',
-    Object.keys(process.env)
-    .filter(x => x.includes('LOGIN') || x.includes('META'))
-    );
-
-    await context.addInitScript((loginData, metaData) => {
-
-        localStorage.setItem('login', loginData);
-    
-        localStorage.setItem('meta', metaData);
-    
-    }, process.env.I_LOGIN_STORAGE, process.env.I_META_STORAGE);
+    await context.addInitScript((payload) => {
+        if (payload?.login) localStorage.setItem('login', payload.login);
+        if (payload?.meta)  localStorage.setItem('meta', payload.meta);
+    }, {
+        login: process.env.I_LOGIN_STORAGE || '',
+        meta:  process.env.I_META_STORAGE || ''
+    });
 
     // Block images, fonts, trackers — no functional value
     const BLOCK_RE = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|eot|svg)(\?|$)|analytics|tracking|collect|beacon/i;
@@ -538,36 +534,11 @@ async function createBrowser(cookies) {
 
     await context.addCookies(cookies);
 
-    await context.addInitScript((storage) => {
-
-    for (const [key, value] of Object.entries(storage)) {
-
-        if (value) {
-            localStorage.setItem(key, value);
-        }
-
-    }
-
-}, {
-    login: process.env.I_LOGIN_STORAGE || '',
-    meta: process.env.I_META_STORAGE || ''
-});
-
-    // DEBUG
     const loadedCookies = await context.cookies();
-    
-    console.log(
-        '🍪 Cookies loaded:',
-        loadedCookies.map(c => c.name).join(', ')
-    );
-    
-    console.log(
-        '🔑 accessToken exists:',
-        loadedCookies.some(c => c.name === 'accessToken')
-    );
-    
+    console.log('🍪 Cookies loaded:', loadedCookies.map(c => c.name).join(', '));
+    console.log('🔑 accessToken exists:', loadedCookies.some(c => c.name === 'accessToken'));
     console.log(`🛡️  ${ua.match(/Chrome\/\d+|Firefox\/\d+|Edg\/\d+/)?.[0] ?? 'UA'} | ${FP.w}×${FP.h}`);
-    
+
     return { browser, context };
 }
 
@@ -577,23 +548,23 @@ async function newPage(context) {
     await page.addInitScript((fp) => {
         Object.defineProperty(navigator, 'webdriver',           { get: () => false });
         Object.defineProperty(navigator, 'platform',            { get: () => fp.platform || 'Win32' });
-        Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => fp.hwc  || 8 });
-        Object.defineProperty(navigator, 'deviceMemory',        { get: () => fp.mem  || 8 });
+        Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => fp.hwc || 8 });
+        Object.defineProperty(navigator, 'deviceMemory',        { get: () => fp.mem || 8 });
 
         const lang = fp.locale.split('-')[0];
         Object.defineProperty(navigator, 'languages', {
-            get: () => fp.locale === lang ? [lang,'en-US','en'] : [fp.locale,lang,'en-US','en'],
+            get: () => fp.locale === lang ? [lang, 'en-US', 'en'] : [fp.locale, lang, 'en-US', 'en'],
         });
 
         Object.defineProperty(navigator, 'plugins', {
             get: () => Object.assign([
-                { name:'Chrome PDF Plugin',  filename:'internal-pdf-viewer',              description:'Portable Document Format' },
-                { name:'Chrome PDF Viewer',  filename:'mhjfbmdgcfjbbpaeojofohoefgiehjai', description:'' },
-                { name:'Native Client',      filename:'internal-nacl-plugin',             description:'' },
+                { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+                { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+                { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
             ], { length: 3 }),
         });
 
-        window.chrome = { runtime:{}, loadTimes:()=>({}), csi:()=>({}), app:{} };
+        window.chrome = { runtime: {}, loadTimes: () => ({}), csi: () => ({}), app: {} };
 
         const _origCtx = HTMLCanvasElement.prototype.getContext;
         HTMLCanvasElement.prototype.getContext = function(type, ...args) {
@@ -613,14 +584,15 @@ async function newPage(context) {
         const _origQuery = navigator.permissions?.query?.bind(navigator.permissions);
         if (_origQuery) {
             navigator.permissions.query = (p) =>
-                ['notifications','geolocation'].includes(p?.name)
-                    ? Promise.resolve({ state:'granted', onchange:null })
+                ['notifications', 'geolocation'].includes(p?.name)
+                    ? Promise.resolve({ state: 'granted', onchange: null })
                     : _origQuery(p);
         }
     }, { ...FP, locale: CONFIG.locale });
 
     return page;
 }
+
 // ─────────────────────────────────────────────
 //  SESSION CHECK
 // ─────────────────────────────────────────────
@@ -631,35 +603,19 @@ async function checkSession(page, label = 'general') {
     const probe = CONFIG.items[Math.floor(Math.random() * CONFIG.items.length)];
 
     page.removeAllListeners('request');
-    page.on('request', req => {
-        console.log(
-            'REQUEST:',
-            req.method(),
-            req.url()
-        );
-    });
+    page.removeAllListeners('console');
+    page.removeAllListeners('pageerror');
 
     page.on('request', req => {
-    console.log(
-        'REQUEST:',
-        req.method(),
-        req.url()
-    );
+        console.log('REQUEST:', req.method(), req.url());
     });
-    
+
     page.on('console', msg => {
-        console.log(
-            'BROWSER LOG:',
-            msg.type(),
-            msg.text()
-        );
+        console.log('BROWSER LOG:', msg.type(), msg.text());
     });
-    
+
     page.on('pageerror', err => {
-        console.log(
-            'PAGE ERROR:',
-            err.message
-        );
+        console.log('PAGE ERROR:', err.message);
     });
 
     for (let attempt = 1; attempt <= CONFIG.cookieRetries; attempt++) {
@@ -669,20 +625,13 @@ async function checkSession(page, label = 'general') {
                 timeout: 30_000
             });
 
-            await page.waitForTimeout(10000);
+            await page.waitForTimeout(10_000);
 
             const html = await page.content();
-
-            console.log(
-                'HTML PREVIEW:',
-                html.slice(0, 5000)
-            );
+            console.log('HTML PREVIEW:', html.slice(0, 5000));
 
             const allCookies = await page.context().cookies();
-            console.log(
-                'ALL COOKIES:',
-                allCookies.map(c => c.name)
-            );
+            console.log('ALL COOKIES:', allCookies.map(c => c.name));
 
             const localStorageDump = await page.evaluate(() => {
                 const data = {};
@@ -695,40 +644,19 @@ async function checkSession(page, label = 'general') {
 
             console.log(
                 'FULL LOCAL STORAGE:',
-                JSON.stringify(
-                    localStorageDump,
-                    null,
-                    2
-                )
+                JSON.stringify(localStorageDump, null, 2)
             );
 
-            console.log(
-                'LOGIN STORAGE:',
-                localStorageDump.login?.substring(0, 500)
-            );
-
-            console.log(
-                'META STORAGE:',
-                localStorageDump.meta?.substring(0, 500)
-            );
+            console.log('LOGIN STORAGE:', localStorageDump.login?.substring(0, 500));
+            console.log('META STORAGE:', localStorageDump.meta?.substring(0, 500));
 
             const pageCookies = await page.context().cookies();
 
-            console.log(
-                'CURRENT URL:',
-                page.url()
-            );
-
-            console.log(
-                'PAGE TITLE:',
-                await page.title()
-            );
-
+            console.log('CURRENT URL:', page.url());
+            console.log('PAGE TITLE:', await page.title());
             console.log(
                 'BODY PREVIEW:',
-                (
-                    await page.locator('body').innerText()
-                ).slice(0, 1000)
+                (await page.locator('body').innerText()).slice(0, 1000)
             );
 
             console.log(
@@ -736,10 +664,7 @@ async function checkSession(page, label = 'general') {
                 pageCookies.some(c => c.name === 'accessToken')
             );
 
-            console.log(
-                '🔍 Cookie count:',
-                pageCookies.length
-            );
+            console.log('🔍 Cookie count:', pageCookies.length);
 
             const loginBtnCount = await page.locator('button[data-testid="login-link"]').count();
             if (loginBtnCount > 0) {
