@@ -638,6 +638,13 @@ async function checkSession(page, label = 'general') {
     timeout: 30_000
     });
 
+    const allCookies = await page.context().cookies();
+
+    console.log(
+        'ALL COOKIES:',
+        allCookies.map(c => c.name)
+    );
+
      const localStorageDump = await page.evaluate(() => {
     const data = {};
     for (let i = 0; i < localStorage.length; i++) {
