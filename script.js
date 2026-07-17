@@ -621,7 +621,6 @@ async function newPage(context) {
 
     return page;
 }
-
 // ─────────────────────────────────────────────
 //  SESSION CHECK
 // ─────────────────────────────────────────────
@@ -631,92 +630,82 @@ async function checkSession(page, label = 'general') {
     console.log(`🔐 Check (${label})...`);
     const probe = CONFIG.items[Math.floor(Math.random() * CONFIG.items.length)];
 
+    page.removeAllListeners('request');
     page.on('request', req => {
-
-        if (req.url().includes('graphql')) {
-
-            console.log(
-                'GRAPHQL URL:',
-                req.url()
-            );
-
-            console.log(
-                'GRAPHQL HEADERS:',
-                req.headers()
-            );
-
-        }
-
+        console.log(
+            'REQUEST:',
+            req.method(),
+            req.url()
+        );
     });
 
     for (let attempt = 1; attempt <= CONFIG.cookieRetries; attempt++) {
         try {
             await page.goto(probe.url, {
-    waitUntil: 'domcontentloaded',
-    timeout: 30_000
-    });
+                waitUntil: 'domcontentloaded',
+                timeout: 30_000
+            });
 
-    const allCookies = await page.context().cookies();
+            const allCookies = await page.context().cookies();
+            console.log(
+                'ALL COOKIES:',
+                allCookies.map(c => c.name)
+            );
 
-    console.log(
-        'ALL COOKIES:',
-        allCookies.map(c => c.name)
-    );
-
-     const localStorageDump = await page.evaluate(() => {
-    const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        data[k] = localStorage.getItem(k);
-    }
-    return data;
-    });
-    
-    console.log(
-        'LOCAL STORAGE KEYS:',
-        Object.keys(localStorageDump)
-    );
-    
-                console.log(
-        'LOGIN STORAGE:',
-        localStorageDump.login?.substring(0, 500)
-    );
-    
-    console.log(
-        'META STORAGE:',
-        localStorageDump.meta?.substring(0, 500)
-    );
-    
-    const pageCookies = await page.context().cookies();
+            const localStorageDump = await page.evaluate(() => {
+                const data = {};
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    data[k] = localStorage.getItem(k);
+                }
+                return data;
+            });
 
             console.log(
-    'CURRENT URL:',
-    page.url()
-    );
-    
-    console.log(
-        'PAGE TITLE:',
-        await page.title()
-    );
-    
-    console.log(
-        'BODY PREVIEW:',
-        (
-            await page.locator('body').innerText()
-        ).slice(0, 1000)
-    );
-        
-        console.log(
-        '🔍 accessToken after goto:',
-        pageCookies.some(c => c.name === 'accessToken')
-    );
-    
-    console.log(
-        '🔍 Cookie count:',
-        pageCookies.length
-    );
-    
-    const loginBtnCount = await page.locator('button[data-testid="login-link"]').count();
+                'LOCAL STORAGE KEYS:',
+                Object.keys(localStorageDump)
+            );
+
+            console.log(
+                'LOGIN STORAGE:',
+                localStorageDump.login?.substring(0, 500)
+            );
+
+            console.log(
+                'META STORAGE:',
+                localStorageDump.meta?.substring(0, 500)
+            );
+
+            const pageCookies = await page.context().cookies();
+
+            console.log(
+                'CURRENT URL:',
+                page.url()
+            );
+
+            console.log(
+                'PAGE TITLE:',
+                await page.title()
+            );
+
+            console.log(
+                'BODY PREVIEW:',
+                (
+                    await page.locator('body').innerText()
+                ).slice(0, 1000)
+            );
+
+            console.log(
+                '🔍 accessToken after goto:',
+                pageCookies.some(c => c.name === 'accessToken')
+            );
+
+            console.log(
+                '🔍 Cookie count:',
+                pageCookies.length
+            );
+
+            const loginBtnCount = await page.locator('button[data-testid="login-link"]').count();
             if (loginBtnCount > 0) {
                 console.warn(`⚠️  Attempt ${attempt}/${CONFIG.cookieRetries} - login button visible`);
                 await saveSessionFailureShot(page, label, attempt, 'login-button');
