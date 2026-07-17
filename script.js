@@ -513,7 +513,22 @@ async function createBrowser(cookies) {
     );
 
     await context.addCookies(cookies);
+
+    // DEBUG
+    const loadedCookies = await context.cookies();
+    
+    console.log(
+        '🍪 Cookies loaded:',
+        loadedCookies.map(c => c.name).join(', ')
+    );
+    
+    console.log(
+        '🔑 accessToken exists:',
+        loadedCookies.some(c => c.name === 'accessToken')
+    );
+    
     console.log(`🛡️  ${ua.match(/Chrome\/\d+|Firefox\/\d+|Edg\/\d+/)?.[0] ?? 'UA'} | ${FP.w}×${FP.h}`);
+    
     return { browser, context };
 }
 
